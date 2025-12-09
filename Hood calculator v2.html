@@ -1,0 +1,769 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Precision Hood Generator (Layout & Geom Fix)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Roboto+Mono:wght@400;600&family=Inter:wght@400;600;700&display=swap');
+        
+        body { font-family: 'Inter', sans-serif; }
+        .mono { font-family: 'Roboto Mono', monospace; }
+        
+        canvas {
+            background-color: #ffffff;
+        }
+        .pattern-bg {
+            background-image: radial-gradient(#cbd5e1 1px, transparent 1px);
+            background-size: 20px 20px;
+        }
+
+        /* PDF / Print Styling */
+        @media print {
+            @page { margin: 10mm; size: A4 landscape; }
+            body { background: white; padding: 0; color: black; }
+            .no-print { display: none !important; }
+            .print-only { display: block !important; }
+            
+            .grid, .col-span-3, .col-span-9 { display: block !important; width: 100% !important; }
+            
+            .canvas-container { 
+                border: 1px solid #000 !important; 
+                box-shadow: none !important; 
+                margin-bottom: 20px;
+                page-break-inside: avoid;
+            }
+            
+            header { border-bottom: 2px solid #000 !important; margin-bottom: 20px; }
+            h1 { font-size: 24px; color: black; }
+        }
+    </style>
+</head>
+<body class="bg-slate-100 text-slate-800 p-4 lg:p-8">
+
+    <div class="max-w-[1400px] mx-auto">
+        <header class="mb-6 border-b border-slate-300 pb-4 flex justify-between items-center">
+            <div>
+                <h1 class="text-3xl font-bold text-slate-900">Roller Shutter Hood CAM</h1>
+                <p class="text-slate-500">Square Profile, Ceiling Fix & Flat Dimensions</p>
+            </div>
+            <div class="text-right text-xs text-slate-400 no-print">
+                <p>v7.2 | Radius Control & Default Update</p>
+            </div>
+        </header>
+
+        <div class="grid grid-cols-1 xl:grid-cols-12 gap-8">
+            
+            <!-- Controls (Left Side) -->
+            <div class="xl:col-span-3 space-y-6 no-print">
+                <div class="bg-white p-5 rounded-lg shadow-sm border border-slate-200">
+                    <h2 class="font-bold text-lg mb-4 text-slate-700 border-b pb-2">End Plate Dimensions</h2>
+                    
+                    <!-- Hood Type -->
+                    <div class="mb-4">
+                        <label class="block text-xs font-bold uppercase text-slate-500 mb-1">Hood Style</label>
+                        <select id="hoodTypeSelect" class="w-full p-2 bg-blue-50 border border-blue-200 text-blue-900 rounded font-medium focus:ring-2 focus:ring-blue-500 outline-none transition">
+                            <option value="3sided" selected>3-Sided (Full Box)</option>
+                            <option value="2sided">2-Sided (Ceiling Fix / L-Shape)</option>
+                        </select>
+                    </div>
+
+                    <!-- Top Depth -->
+                    <div class="mb-4" id="topSideContainer">
+                        <label class="block text-xs font-bold uppercase text-slate-500 mb-1">End Plate Size (Square)</label>
+                        <select id="topSideSelect" class="w-full p-2 bg-slate-50 border border-slate-300 rounded font-medium focus:ring-2 focus:ring-blue-500 outline-none transition">
+                            <option value="250">250 mm</option>
+                            <option value="300" selected>300 mm (Standard)</option>
+                            <option value="350">350 mm</option>
+                            <option value="400">400 mm</option>
+                            <option value="450">450 mm</option>
+                            <option value="500">500 mm</option>
+                            <option value="550">550 mm</option>
+                            <option value="600">600 mm</option>
+                        </select>
+                        <p class="text-[10px] text-slate-400 mt-1">Sets Top Depth & Front Height</p>
+                    </div>
+
+                    <!-- Setback Input -->
+                    <div class="mb-4">
+                        <label class="block text-xs font-bold uppercase text-teal-700 mb-1">Wall Setback (Fold 1 Line)</label>
+                        <div class="flex items-center">
+                            <!-- CHANGED: Default value from 50 to 110 -->
+                            <input type="number" id="setbackInput" value="110" step="1" min="0" class="w-full p-2 bg-teal-50 border border-teal-200 text-teal-900 rounded focus:outline-none focus:ring-2 focus:ring-teal-500 font-mono font-bold">
+                            <span class="ml-2 text-xs text-slate-500">mm</span>
+                        </div>
+                        <p class="text-[10px] text-slate-500 mt-1">Horizontal distance from Wall to Lip</p>
+                    </div>
+
+                    <!-- Lip Length -->
+                    <div class="mb-4">
+                        <label class="block text-xs font-bold uppercase text-slate-500 mb-1">Lip Downstand (Vertical)</label>
+                        <div class="flex items-center">
+                            <input type="number" id="lipInput" value="30" step="1" min="10" class="w-full p-2 bg-slate-50 border border-slate-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-slate-900">
+                            <span class="ml-2 text-xs text-slate-500">mm</span>
+                        </div>
+                    </div>
+
+                    <!-- Feature -->
+                    <div class="mb-4">
+                        <label class="block text-xs font-bold uppercase text-slate-500 mb-1" id="featureLabel">Wall Upstand</label>
+                        <select id="topFeatureSelect" class="w-full p-2 bg-slate-50 border border-slate-300 rounded font-medium focus:ring-2 focus:ring-blue-500 outline-none transition">
+                            <option value="none">None</option>
+                            <option value="upstand" selected>Standard (Up / Back)</option>
+                            <option value="inverted">Inverted (Down / Fwd)</option>
+                        </select>
+                    </div>
+
+                    <!-- Thickness -->
+                    <div class="mb-4">
+                        <label class="block text-xs font-bold uppercase text-slate-500 mb-1">Thickness (Galv)</label>
+                        <select id="thicknessSelect" class="w-full p-2 bg-slate-50 border border-slate-300 rounded font-medium focus:ring-2 focus:ring-blue-500 outline-none transition">
+                            <option value="0.9">0.9 mm</option>
+                            <option value="1.5">1.5 mm</option>
+                        </select>
+                    </div>
+
+                    <!-- Radius Input -->
+                    <div class="mb-4">
+                        <label class="block text-xs font-bold uppercase text-slate-500 mb-1">Bend Radius (Internal)</label>
+                        <div class="flex items-center">
+                            <input type="number" id="radiusInput" value="3.0" step="0.1" min="0.1" class="w-full p-2 bg-slate-50 border border-slate-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-slate-900">
+                            <span class="ml-2 text-xs text-slate-500">mm</span>
+                        </div>
+                    </div>
+                    
+                    <!-- Offset Input -->
+                    <div class="mb-4 p-3 bg-slate-50 border border-slate-200 rounded">
+                        <label class="block text-xs font-bold uppercase text-slate-600 mb-1">Offset (Gap)</label>
+                        <div class="flex items-center">
+                            <input type="number" id="gapInput" value="1.0" step="0.1" min="0.1" class="w-full p-2 border border-slate-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 text-right font-mono text-slate-900">
+                            <span class="ml-2 text-xs text-slate-500">mm</span>
+                        </div>
+                    </div>
+
+                    <!-- Female Toggle -->
+                    <div class="mt-4 pt-4 border-t border-slate-100">
+                        <label class="flex items-center p-3 border border-blue-100 bg-blue-50 rounded-lg cursor-pointer hover:bg-blue-100 transition">
+                            <input type="checkbox" id="femaleCheckbox" class="w-4 h-4 text-blue-600 rounded focus:ring-blue-500">
+                            <div class="ml-3">
+                                <span class="block text-sm font-bold text-blue-900">Add Female Hood</span>
+                            </div>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Print Button -->
+                <button onclick="window.print()" class="w-full bg-slate-800 text-white py-4 rounded-lg shadow-lg font-bold hover:bg-slate-700 transition flex items-center justify-center gap-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9V2h12v7"></path><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><path d="M6 14h12v8H6z"></path></svg>
+                    Download / Print PDF Report
+                </button>
+            </div>
+
+            <!-- Drawings (Right Side) -->
+            <div class="xl:col-span-9 space-y-6">
+                
+                <!-- Print Only Cut List -->
+                <div class="hidden print-only mb-6 border border-black p-4">
+                    <h3 class="font-bold border-b border-black mb-2">Cut List Summary</h3>
+                    <p>Male Flat: <span id="printMaleOut" class="font-mono font-bold">--</span></p>
+                    <p id="printFemaleContainer">Female Flat: <span id="printFemaleOut" class="font-mono font-bold">--</span></p>
+                </div>
+
+                <!-- Profile View -->
+                <div class="bg-white p-1 rounded-xl shadow-sm border border-slate-200 overflow-hidden relative canvas-container">
+                    <div class="bg-slate-50 px-4 py-2 border-b border-slate-100 flex justify-between items-center no-print">
+                        <h3 class="font-bold text-slate-700">Section Profile</h3>
+                        <div class="flex gap-2">
+                            <button onclick="changeProfileZoom(0.1)" class="w-8 h-8 bg-white border border-slate-300 rounded hover:bg-slate-100 font-bold text-slate-600 text-lg flex items-center justify-center shadow-sm">+</button>
+                            <button onclick="changeProfileZoom(-0.1)" class="w-8 h-8 bg-white border border-slate-300 rounded hover:bg-slate-100 font-bold text-slate-600 text-lg flex items-center justify-center shadow-sm">-</button>
+                        </div>
+                    </div>
+                    <canvas id="profileCanvas" width="1000" height="600" class="w-full"></canvas>
+                </div>
+
+                <!-- Flat Pattern View -->
+                <div class="bg-white p-1 rounded-xl shadow-sm border border-slate-200 overflow-hidden canvas-container">
+                    <div class="bg-slate-50 px-4 py-2 border-b border-slate-100 flex justify-between items-center no-print">
+                        <h3 class="font-bold text-slate-700">Flat Pattern Layout</h3>
+                        <div class="flex gap-2">
+                            <button onclick="changeFlatZoom(0.1)" class="w-8 h-8 bg-white border border-slate-300 rounded hover:bg-slate-100 font-bold text-slate-600 text-lg flex items-center justify-center shadow-sm">+</button>
+                            <button onclick="changeFlatZoom(-0.1)" class="w-8 h-8 bg-white border border-slate-300 rounded hover:bg-slate-100 font-bold text-slate-600 text-lg flex items-center justify-center shadow-sm">-</button>
+                        </div>
+                    </div>
+                    <canvas id="flatCanvas" width="1000" height="500" class="w-full pattern-bg"></canvas>
+                </div>
+
+                <!-- Screen Only Cut List -->
+                <div class="bg-slate-800 text-white p-4 rounded-lg shadow no-print flex justify-between items-center">
+                    <div class="flex gap-8">
+                        <div>
+                            <span class="text-slate-400 text-xs block uppercase">Male Flat</span>
+                            <span id="maleTotalLength" class="text-xl font-bold font-mono">--</span>
+                        </div>
+                        <div id="femaleResultRow" class="hidden">
+                            <span class="text-red-300 text-xs block uppercase">Female Flat</span>
+                            <span id="femaleTotalLength" class="text-xl font-bold font-mono text-red-400">--</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- Constants ---
+        const CONSTANTS = {
+            feature: 50,
+            kFactor: 0.45
+        };
+
+        // --- View States ---
+        let profileState = { scale: 1.0, panX: 50, panY: 50 };
+        let flatState = { scale: 1.0, panX: 50, panY: 50 };
+        let autoScale = true;
+
+        // --- DOM ---
+        const ui = {
+            hoodType: document.getElementById('hoodTypeSelect'),
+            topSide: document.getElementById('topSideSelect'),
+            topSideContainer: document.getElementById('topSideContainer'),
+            feature: document.getElementById('topFeatureSelect'),
+            featureLabel: document.getElementById('featureLabel'),
+            thick: document.getElementById('thicknessSelect'),
+            radiusInput: document.getElementById('radiusInput'),
+            setbackInput: document.getElementById('setbackInput'),
+            lipInput: document.getElementById('lipInput'),
+            femaleCheck: document.getElementById('femaleCheckbox'),
+            gapInput: document.getElementById('gapInput'),
+            maleOut: document.getElementById('maleTotalLength'),
+            femaleOut: document.getElementById('femaleTotalLength'),
+            femaleRow: document.getElementById('femaleResultRow'),
+            printMale: document.getElementById('printMaleOut'),
+            printFem: document.getElementById('printFemaleOut'),
+            printFemCont: document.getElementById('printFemaleContainer')
+        };
+        
+        const ctxP = document.getElementById('profileCanvas').getContext('2d');
+        const ctxF = document.getElementById('flatCanvas').getContext('2d');
+
+        // --- Events ---
+        const inputs = [ui.hoodType, ui.topSide, ui.feature, ui.thick, ui.femaleCheck, ui.gapInput, ui.lipInput, ui.setbackInput, ui.radiusInput];
+        inputs.forEach(el => el.addEventListener('change', () => { autoScale = true; update(); }));
+        ui.gapInput.addEventListener('input', () => { update(); });
+        ui.lipInput.addEventListener('input', () => { update(); });
+        ui.setbackInput.addEventListener('input', () => { update(); });
+        ui.radiusInput.addEventListener('input', () => { update(); });
+
+        // --- Logic ---
+
+        function changeProfileZoom(delta) {
+            profileState.scale = Math.max(0.2, profileState.scale + delta);
+            autoScale = false; 
+            update();
+        }
+
+        function changeFlatZoom(delta) {
+            flatState.scale = Math.max(0.2, flatState.scale + delta);
+            autoScale = false;
+            update();
+        }
+
+        function calculateBendDeduction(t, r, angle) {
+            const rad = (angle * Math.PI) / 180;
+            const ba = rad * (r + (CONSTANTS.kFactor * t));
+            const osb = Math.tan(rad/2) * (r + t);
+            return (2 * osb) - ba;
+        }
+
+        function update() {
+            const isTwoSided = ui.hoodType.value === '2sided';
+            const size = parseInt(ui.topSide.value); 
+            const epTop = size;
+            const epVert = size; 
+
+            const featureType = ui.feature.value; 
+            const t = parseFloat(ui.thick.value);
+            const radiusVal = parseFloat(ui.radiusInput.value) || 3.0;
+            const lipVal = parseFloat(ui.lipInput.value) || 30;
+            const setbackVal = parseFloat(ui.setbackInput.value) || 0;
+            const hasFemale = ui.femaleCheck.checked;
+            const gap = parseFloat(ui.gapInput.value) || 1.0;
+
+            if (isTwoSided) {
+                ui.featureLabel.innerText = "Ceiling Fixing Flange";
+            } else {
+                ui.featureLabel.innerText = "Wall Upstand";
+            }
+
+            const epBotReturn = Math.max(10, epTop - setbackVal);
+
+            // --- Offset Logic ---
+            const fOffset = gap + t; 
+            let mTopLen = epTop + t; 
+            let fTopLen = epTop + t; 
+
+            // Adjust Top Lengths based on Feature Type (3-Sided)
+            if (!isTwoSided) {
+                if (featureType === 'none') {
+                    mTopLen = epTop + t;
+                    fTopLen = epTop + t + fOffset;
+                } else if (featureType === 'inverted') {
+                    // FIX v7.1: 3-Sided Inverted
+                    // Male stood off wall by offset gap.
+                    // Male Top = Plate + Thickness
+                    // Female Top = Offset (Wall Gap) + Male Top + Offset (Front Gap)
+                    mTopLen = epTop + t; 
+                    fTopLen = mTopLen + (2 * fOffset); 
+                }
+            }
+
+            // --- 1. Calculate Male Dimensions ---
+            const maleInt = { top: epTop, vert: epVert, bot: epBotReturn };
+            const maleExt = {
+                feature: CONSTANTS.feature, 
+                top: mTopLen,
+                vert: maleInt.vert + (2 * t),
+                bot: maleInt.bot + t,
+                lip: lipVal
+            };
+
+            let maleSegs = [];
+            let bendDirs = []; 
+
+            if (isTwoSided) {
+                if (featureType !== 'none') {
+                    maleSegs.push(maleExt.feature); bendDirs.push("DOWN"); 
+                }
+                maleSegs.push(maleExt.vert); bendDirs.push("DOWN"); 
+                maleSegs.push(maleExt.bot); bendDirs.push("DOWN"); 
+                maleSegs.push(maleExt.lip);
+            } else {
+                if (featureType === 'upstand') {
+                    maleSegs.push(maleExt.feature); bendDirs.push("DOWN"); 
+                } else if (featureType === 'inverted') {
+                    maleSegs.push(maleExt.feature); bendDirs.push("UP"); 
+                }
+                maleSegs.push(maleExt.top); bendDirs.push("DOWN"); 
+                maleSegs.push(maleExt.vert); bendDirs.push("DOWN"); 
+                maleSegs.push(maleExt.bot); bendDirs.push("DOWN"); 
+                maleSegs.push(maleExt.lip);
+            }
+
+            const bd = calculateBendDeduction(t, radiusVal, 90);
+            const numBends = maleSegs.length - 1;
+            const maleSum = maleSegs.reduce((a,b)=>a+b, 0);
+            const maleFlat = numBends >= 0 ? maleSum - (numBends * bd) : maleSum;
+
+            ui.maleOut.innerText = maleFlat.toFixed(1) + " mm";
+            ui.printMale.innerText = maleFlat.toFixed(1) + " mm";
+
+            // --- 2. Calculate Female Dimensions ---
+            let fVert, fBot, fFeature;
+
+            if (isTwoSided) {
+                fVert = maleExt.vert; 
+                fBot = maleExt.bot;   
+                fFeature = Math.max(10, CONSTANTS.feature - fOffset);
+                
+                if (featureType === 'none') {
+                    fVert = maleExt.vert + fOffset;
+                    fBot = maleExt.bot; 
+                }
+            } else {
+                fVert = maleExt.vert + (2 * gap);
+                fBot = maleExt.bot;   
+                fFeature = Math.max(10, CONSTANTS.feature - fOffset);
+            }
+
+            const femExt = {
+                feature: fFeature,
+                top: fTopLen, 
+                vert: fVert, 
+                bot: fBot,
+                lip: Math.max(10, lipVal - fOffset)
+            };
+
+            let femaleSegs = [];
+            let femaleFlat = 0;
+
+            if (hasFemale) {
+                ui.femaleRow.classList.remove('hidden');
+                ui.printFemCont.style.display = 'block';
+
+                if (isTwoSided) {
+                    if (featureType !== 'none') femaleSegs.push(femExt.feature);
+                    femaleSegs.push(femExt.vert); 
+                    femaleSegs.push(femExt.bot);
+                    femaleSegs.push(femExt.lip);
+                } else {
+                    if (featureType !== 'none') femaleSegs.push(femExt.feature);
+                    femaleSegs.push(femExt.top); 
+                    femaleSegs.push(femExt.vert); 
+                    femaleSegs.push(femExt.bot); 
+                    femaleSegs.push(femExt.lip); 
+                }
+
+                const fSum = femaleSegs.reduce((a,b)=>a+b, 0);
+                const fNumBends = femaleSegs.length - 1;
+                femaleFlat = fNumBends >= 0 ? fSum - (fNumBends * bd) : fSum;
+                
+                ui.femaleOut.innerText = femaleFlat.toFixed(1) + " mm";
+                ui.printFem.innerText = femaleFlat.toFixed(1) + " mm";
+            } else {
+                ui.femaleRow.classList.add('hidden');
+                ui.printFemCont.style.display = 'none';
+            }
+
+            // --- Auto-Scale Calculation ---
+            if(autoScale) {
+                // Profile View
+                let totalW, totalH;
+                if (isTwoSided) {
+                    totalW = size + CONSTANTS.feature + 150;
+                    totalH = size + 100;
+                } else {
+                    totalW = size + 100; 
+                    totalH = size + CONSTANTS.feature + 100;
+                }
+                const pW = ctxP.canvas.width;
+                const pH = ctxP.canvas.height;
+                const sX = pW / totalW;
+                const sY = pH / totalH;
+                profileState.scale = Math.min(sX, sY) * 0.7;
+                profileState.panX = (pW - (totalW * profileState.scale)) / 2 + (50 * profileState.scale);
+                profileState.panY = 100; 
+
+                // Flat View Auto Scale
+                const maxL = Math.max(maleFlat, femaleFlat);
+                const fW = ctxF.canvas.width;
+                const fH = ctxF.canvas.height;
+                const reqW = maxL + 150; 
+                // Increased height requirement due to spacing
+                const reqH = hasFemale ? 550 : 250; 
+                const fSX = fW / reqW;
+                const fSY = fH / reqH;
+                flatState.scale = Math.min(fSX, fSY) * 0.9;
+                flatState.panX = 50; 
+                flatState.panY = 20; 
+            }
+
+            drawProfile(maleExt, femExt, featureType, t, hasFemale, isTwoSided, gap, epTop, epVert, maleInt, setbackVal);
+            drawFlat(maleSegs, femaleSegs, maleFlat, femaleFlat, bendDirs, t, hasFemale, bd);
+        }
+
+        // --- DRAWING HELPER ---
+        function toProfileScreen(x, y) {
+            return {
+                x: (x * profileState.scale) + profileState.panX,
+                y: (y * profileState.scale) + profileState.panY
+            };
+        }
+        
+        function toFlatScreen(x, y) {
+            return {
+                x: (x * flatState.scale) + flatState.panX,
+                y: (y * flatState.scale) + flatState.panY
+            };
+        }
+
+        // --- PROFILE DRAWING ---
+        function drawInternalDim(ctx, rawP1, rawP2, text, color, offset) {
+            const p1 = toProfileScreen(rawP1.x, rawP1.y);
+            const p2 = toProfileScreen(rawP2.x, rawP2.y);
+            const dx = p2.x - p1.x; const dy = p2.y - p1.y;
+            const angle = Math.atan2(dy, dx);
+            const perpX = -Math.sin(angle) * offset; const perpY = Math.cos(angle) * offset;
+            const startX = p1.x + perpX; const startY = p1.y + perpY;
+            const endX = p2.x + perpX; const endY = p2.y + perpY;
+            ctx.beginPath(); ctx.strokeStyle = color; ctx.lineWidth = 1;
+            ctx.moveTo(startX, startY); ctx.lineTo(endX, endY); ctx.stroke();
+            ctx.beginPath(); ctx.strokeStyle = color + "44";
+            ctx.moveTo(p1.x, p1.y); ctx.lineTo(startX, startY);
+            ctx.moveTo(p2.x, p2.y); ctx.lineTo(endX, endY); ctx.stroke();
+            const as = 4;
+            const arrow = (x, y, a) => {
+                ctx.beginPath(); ctx.moveTo(x, y);
+                ctx.lineTo(x - as * Math.cos(a - Math.PI/6), y - as * Math.sin(a - Math.PI/6));
+                ctx.lineTo(x - as * Math.cos(a + Math.PI/6), y - as * Math.sin(a + Math.PI/6));
+                ctx.fillStyle = color; ctx.fill();
+            };
+            arrow(endX, endY, angle); arrow(startX, startY, angle + Math.PI);
+            const mx = (startX + endX) / 2; const my = (startY + endY) / 2;
+            ctx.font = "bold 12px Inter"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+            const tw = ctx.measureText(text).width;
+            ctx.fillStyle = "white"; ctx.fillRect(mx - tw/2 - 2, my - 6, tw + 4, 12);
+            ctx.fillStyle = color; ctx.fillText(text, mx, my);
+        }
+
+        function drawBadge(ctx, rawX, rawY, number, color) {
+            const pt = toProfileScreen(rawX, rawY);
+            ctx.beginPath(); ctx.arc(pt.x, pt.y, 9, 0, Math.PI * 2);
+            ctx.fillStyle = "white"; ctx.fill();
+            ctx.lineWidth = 2; ctx.strokeStyle = color; ctx.stroke();
+            ctx.fillStyle = color; ctx.font = "bold 11px Inter";
+            ctx.textAlign = "center"; ctx.textBaseline = "middle";
+            ctx.fillText(number, pt.x, pt.y + 0.5);
+        }
+
+        function drawProfile(mExt, fExt, fType, t, showFemale, isTwoSided, gap, epTop, epVert, mInt, setback) {
+            const w = ctxP.canvas.width; const h = ctxP.canvas.height;
+            ctxP.clearRect(0,0,w,h);
+            const startX = 0; const startY = 0; 
+            const plateX = startX; const plateY = startY + t; 
+            const epBotReturn = epTop - setback;
+
+            const pt1 = toProfileScreen(plateX, plateY);
+            const pt2 = toProfileScreen(plateX + epTop, plateY);
+            const pt3 = toProfileScreen(plateX + epTop, plateY + epVert);
+            const pt4 = toProfileScreen(plateX + epTop - epBotReturn, plateY + epVert);
+            const pt5 = toProfileScreen(plateX + epTop - epBotReturn, plateY);
+
+            ctxP.beginPath(); ctxP.strokeStyle = "#94a3b8"; ctxP.lineWidth = 1; ctxP.setLineDash([5, 5]);
+            ctxP.moveTo(pt1.x, pt1.y); ctxP.lineTo(pt2.x, pt2.y); ctxP.lineTo(pt3.x, pt3.y); ctxP.lineTo(pt4.x, pt4.y); ctxP.lineTo(pt5.x, pt5.y);
+            ctxP.stroke(); ctxP.setLineDash([]);
+            ctxP.fillStyle = "#94a3b8"; ctxP.font = "12px Inter"; ctxP.fillText(`End Plate`, pt1.x + 10, pt1.y + 20);
+
+            if (isTwoSided) {
+                const ceilL = toProfileScreen(startX - 50, startY);
+                const ceilR = toProfileScreen(startX + epTop + 100, startY);
+                ctxP.beginPath(); ctxP.strokeStyle = "#000"; ctxP.lineWidth = 0.5;
+                ctxP.moveTo(ceilL.x, ceilL.y); ctxP.lineTo(ceilR.x, ceilR.y); ctxP.stroke();
+                ctxP.fillStyle = "#000"; ctxP.fillText("Ceiling", ceilL.x + 20, ceilL.y - 10);
+            }
+
+            const wallT = toProfileScreen(startX, startY - 50);
+            const wallB = toProfileScreen(startX, startY + epVert + 100);
+            ctxP.beginPath(); ctxP.strokeStyle = "#000"; ctxP.lineWidth = 0.5; 
+            ctxP.moveTo(wallT.x, wallT.y); ctxP.lineTo(wallB.x, wallB.y); ctxP.stroke();
+            ctxP.save(); ctxP.translate(wallT.x - 10, wallT.y + 20); ctxP.rotate(-Math.PI/2);
+            ctxP.fillStyle = "#000"; ctxP.fillText("Wall", 0, 0); ctxP.restore();
+
+            const trace = (dims, isFemale, color) => {
+                const bends = [];
+                ctxP.beginPath();
+                let cx = startX; let cy = startY; 
+                if (isFemale) { cx = startX; cy = startY; }
+
+                const moveTo = (x, y) => { const s = toProfileScreen(x, y); ctxP.moveTo(s.x, s.y); }
+                const lineTo = (x, y) => { const s = toProfileScreen(x, y); ctxP.lineTo(s.x, s.y); return {x, y}; }
+
+                if (isTwoSided) {
+                    let topY = startY + t;
+                    let frontX = startX + epTop + t;
+                    
+                    if (isFemale) {
+                        topY += (gap + t);
+                        frontX += (gap + t);
+                        if (fType === 'none') {
+                             topY -= (gap + t); 
+                        }
+                    }
+
+                    let featLen = dims.feature;
+                    if (fType !== 'none') {
+                        bends.push({x:frontX, y:topY});
+                        moveTo(frontX + featLen, topY);
+                        lineTo(frontX, topY);
+                    } else {
+                        moveTo(frontX, topY);
+                        bends.push({x:frontX, y:topY});
+                    }
+                    lineTo(frontX, topY + dims.vert); 
+                    bends.push({x:frontX, y:topY + dims.vert});
+                    lineTo(frontX - dims.bot, topY + dims.vert);
+                    bends.push({x:frontX - dims.bot, y:topY + dims.vert});
+                    lineTo(frontX - dims.bot, topY + dims.vert + dims.lip);
+                } else {
+                    // 3-Sided Drawing Logic
+                    if (isFemale) {
+                         if (fType === 'inverted') {
+                             // FIX v7.1: Female Inverted starts at Datum 0 (Wall), Top is higher
+                             cx = startX; 
+                             cy = startY - gap - t; 
+                         } else {
+                             cy = startY - gap - t; cx = startX + gap + t; 
+                             if (fType === 'none') cx = startX; 
+                         }
+                    } else {
+                         // Male Logic
+                         cy = startY; cx = startX;
+                         // FIX v7.1: Male Inverted is Stood Off from Wall by Offset
+                         if (fType === 'inverted') {
+                             cx = startX + gap + t; 
+                         }
+                    }
+                    
+                    let featLen = dims.feature;
+                    if (fType === 'upstand') {
+                        moveTo(cx, cy - featLen); lineTo(cx, cy); bends.push({x:cx, y:cy});
+                    } else if (fType === 'inverted') {
+                        moveTo(cx, cy + featLen); lineTo(cx, cy); bends.push({x:cx, y:cy});
+                    } else {
+                        moveTo(cx, cy); bends.push({x:cx, y:cy});
+                    }
+                    lineTo(cx + dims.top, cy); bends.push({x: cx + dims.top, y: cy});
+                    lineTo(cx + dims.top, cy + dims.vert); bends.push({x: cx + dims.top, y: cy + dims.vert});
+                    lineTo(cx + dims.top - dims.bot, cy + dims.vert); bends.push({x: cx + dims.top - dims.bot, y: cy + dims.vert});
+                    lineTo(cx + dims.top - dims.bot, cy + dims.vert + dims.lip);
+                }
+                ctxP.lineWidth = Math.max(2, t * profileState.scale);
+                ctxP.strokeStyle = color; ctxP.lineJoin = "round"; ctxP.stroke();
+                return bends;
+            };
+
+            const maleBends = trace(mExt, false, '#2563eb');
+            const intColor = "#1e3a8a"; 
+            if (isTwoSided) {
+                const frontX = startX + epTop; 
+                const topY = startY + t;
+                const botY = topY + mInt.vert;
+                drawInternalDim(ctxP, {x:frontX, y:topY}, {x:frontX, y:botY}, `Face: ${mInt.vert.toFixed(1)}`, intColor, -30);
+                drawInternalDim(ctxP, {x:frontX-mInt.bot, y:botY}, {x:frontX, y:botY}, `Bot: ${mInt.bot.toFixed(1)}`, intColor, 30);
+                
+                if (fType !== 'none') {
+                    const featLen = mExt.feature;
+                    drawInternalDim(ctxP, 
+                        {x: frontX + t, y: topY}, 
+                        {x: frontX + t + featLen, y: topY}, 
+                        `Flange: ${featLen.toFixed(1)}`, 
+                        intColor, 
+                        -30
+                    );
+                }
+
+            } else {
+                drawInternalDim(ctxP, {x:startX, y:startY+t}, {x:startX+mInt.top, y:startY+t}, `Int: ${mInt.top.toFixed(1)}`, intColor, 25);
+                const rightX = startX + mExt.top;
+                const insideFaceX = rightX - t;
+                drawInternalDim(ctxP, {x:insideFaceX, y:startY+t}, {x:insideFaceX, y:startY+t+mInt.vert}, `Int: ${mInt.vert.toFixed(1)}`, intColor, -25);
+                
+                if (fType !== 'none') {
+                    let cx = startX;
+                    let cy = startY;
+                    if (fType === 'upstand') {
+                        drawInternalDim(ctxP, 
+                            {x: cx, y: cy}, 
+                            {x: cx, y: cy - mExt.feature}, 
+                            `Upstand: ${mExt.feature.toFixed(1)}`, 
+                            intColor, 
+                            -40
+                        );
+                    } else if (fType === 'inverted') {
+                        // Inverted: Male starts offset, Female starts at wall
+                        // Draw dim relative to Male start
+                        let invCx = startX + gap + t; 
+                        drawInternalDim(ctxP, 
+                            {x: invCx, y: cy}, 
+                            {x: invCx, y: cy + mExt.feature}, 
+                            `Upstand: ${mExt.feature.toFixed(1)}`, 
+                            intColor, 
+                            -40
+                        );
+                    }
+                }
+            }
+            const wallPt = { x: startX, y: startY + mExt.vert + 60 };
+            const lipPt = { x: startX + setback, y: startY + mExt.vert + 60 };
+            drawInternalDim(ctxP, wallPt, lipPt, `Setback: ${setback.toFixed(0)}`, "#0f766e", 0);
+
+            if (showFemale) {
+                const femaleBends = trace(fExt, true, '#dc2626');
+                femaleBends.forEach((pt, i) => drawBadge(ctxP, pt.x + 8, pt.y - 8, i+1, '#dc2626'));
+            }
+            maleBends.forEach((pt, i) => drawBadge(ctxP, pt.x, pt.y, i+1, '#2563eb'));
+        }
+
+        // --- FLAT PATTERN DRAWING ---
+        function drawFlat(mSegs, fSegs, mFlat, fFlat, bendDirs, t, showFemale, bd) {
+            const w = ctxF.canvas.width; const h = ctxF.canvas.height;
+            ctxF.clearRect(0,0,w,h);
+
+            const renderStrip = (segments, flatLen, color, yPos, label) => {
+                const barH = 50;
+                const pxLen = flatLen * flatState.scale;
+                const rectStart = toFlatScreen(0, yPos);
+                
+                ctxF.fillStyle = color + "10"; ctxF.strokeStyle = color; ctxF.lineWidth = 2;
+                ctxF.fillRect(rectStart.x, rectStart.y, pxLen, barH * flatState.scale); 
+                ctxF.strokeRect(rectStart.x, rectStart.y, pxLen, barH * flatState.scale);
+                
+                ctxF.fillStyle = color; ctxF.font = "bold 14px Inter"; ctxF.textAlign = "left";
+                ctxF.fillText(label, rectStart.x, rectStart.y - 10);
+
+                // --- Total Dimension Line (Same Style as Segments) ---
+                // Pushed down to avoid overlap
+                const totalDimY = yPos + barH + 120; 
+                const tStart = toFlatScreen(0, totalDimY);
+                const tEnd = toFlatScreen(flatLen, totalDimY);
+                const tY = tStart.y;
+
+                ctxF.beginPath(); ctxF.strokeStyle = "#475569"; ctxF.lineWidth = 1;
+                ctxF.moveTo(tStart.x, tY); ctxF.lineTo(tEnd.x, tY);
+                ctxF.moveTo(tStart.x, tY - 5); ctxF.lineTo(tStart.x, tY + 5);
+                ctxF.moveTo(tEnd.x, tY - 5); ctxF.lineTo(tEnd.x, tY + 5);
+                ctxF.stroke();
+                
+                const totalTxt = `Total: ${flatLen.toFixed(1)} mm`;
+                const tMX = (tStart.x + tEnd.x) / 2;
+                const tTW = ctxF.measureText(totalTxt).width;
+                ctxF.fillStyle = "white"; ctxF.fillRect(tMX - tTW/2 - 4, tY - 6, tTW + 8, 12);
+                ctxF.fillStyle = "#1e293b"; ctxF.font = "11px Roboto Mono"; ctxF.textAlign = "center";
+                ctxF.fillText(totalTxt, tMX, tY + 3);
+
+                let currentPos = 0;
+                let dimLevel = 1;
+                const halfBd = bd / 2;
+
+                const drawDim = (xVal, level) => {
+                    const dimY = yPos + barH + (level * 25);
+                    const sStart = toFlatScreen(0, dimY);
+                    const sEnd = toFlatScreen(xVal, dimY);
+                    const Y = sEnd.y; 
+                    ctxF.beginPath(); ctxF.strokeStyle = "#475569"; ctxF.lineWidth = 1;
+                    ctxF.moveTo(sStart.x, Y); ctxF.lineTo(sEnd.x, Y);
+                    ctxF.moveTo(sStart.x, Y - 5); ctxF.lineTo(sStart.x, Y + 5);
+                    ctxF.moveTo(sEnd.x, Y - 5); ctxF.lineTo(sEnd.x, Y + 5);
+                    ctxF.stroke();
+                    const txt = xVal.toFixed(1);
+                    const tw = ctxF.measureText(txt).width;
+                    const mx = (sStart.x + sEnd.x) / 2;
+                    ctxF.fillStyle = "white"; ctxF.fillRect(mx - tw/2 - 2, Y - 6, tw + 4, 12);
+                    ctxF.fillStyle = "#1e293b"; ctxF.font = "11px Roboto Mono"; ctxF.textAlign = "center";
+                    ctxF.fillText(txt, mx, Y + 3);
+                };
+
+                const drawFold = (xVal, dir, index) => {
+                    const pt = toFlatScreen(xVal, yPos);
+                    const hScaled = barH * flatState.scale;
+                    ctxF.beginPath(); ctxF.strokeStyle = "#ef4444"; ctxF.setLineDash([4, 3]);
+                    ctxF.moveTo(pt.x, pt.y); ctxF.lineTo(pt.x, pt.y + hScaled); ctxF.stroke(); ctxF.setLineDash([]);
+                    ctxF.fillStyle = "#ef4444"; ctxF.font = "9px Inter"; ctxF.textAlign = "center";
+                    ctxF.fillText(dir + " 90°", pt.x, pt.y + hScaled + 12);
+                    ctxF.beginPath(); ctxF.arc(pt.x, pt.y + hScaled/2, 9, 0, Math.PI*2);
+                    ctxF.fillStyle = "white"; ctxF.fill(); 
+                    ctxF.lineWidth = 1; ctxF.strokeStyle = color; ctxF.stroke();
+                    ctxF.fillStyle = color; ctxF.fillText(index, pt.x, pt.y + hScaled/2 + 4);
+                }
+
+                segments.forEach((segLen, i) => {
+                    if (i === segments.length - 1) return;
+                    let distToAdd = 0;
+                    if (i === 0) distToAdd = segLen - halfBd;
+                    else distToAdd = segLen - bd;
+                    currentPos += distToAdd;
+                    drawFold(currentPos, bendDirs[i] || "DOWN", i + 1);
+                    drawDim(currentPos, dimLevel);
+                    dimLevel++;
+                });
+            };
+
+            renderStrip(mSegs, mFlat, '#2563eb', 50, "MALE Part");
+            // Increased spacing for female to allow dimensions
+            if (showFemale) renderStrip(fSegs, fFlat, '#dc2626', 350, "FEMALE Part (Over-cladding)");
+        }
+        
+        window.onload = update;
+    </script>
+</body>
+</html>
